@@ -1,0 +1,696 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Watch Service Tracker</title>
+  <!-- Import Google fonts and Tailwind for styling -->
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Use a version-specific Tailwind CDN link to prevent blank page issues on some devices -->
+  <script src="https://cdn.tailwindcss.com/3.4.3"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <style>
+    /* Styling for the progress bar */
+    .progress-bar {
+      height: 30px;
+      background-color: #e5e7eb;
+      border-radius: 9999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-bar-inner {
+      height: 100%;
+      width: 0%;
+      background-color: #10b981;
+      text-align: left;
+      padding-right: 10px;
+      border-radius: 9999px;
+      transition: width 0.4s ease, background-color 0.4s ease;
+    }
+    .progress-bar-text {
+      padding-left: 10px;
+      position: absolute;
+      left: 10px;
+      top: 0;
+    }
+    /* Collapsible section styling */
+    .collapsible {
+      background-color: #f1f1f1;
+      color: #444;
+      cursor: pointer;
+      padding: 18px;
+      width: 100%;
+      border: none;
+      text-align: left;
+      outline: none;
+      font-size: 15px;
+      transition: background-color 0.4s ease;
+    }
+    .collapsible.active, .collapsible:hover {
+      background-color: #ccc;
+    }
+    .collapsible-content {
+      padding: 0 18px;
+      display: none;
+      overflow: hidden;
+      background-color: #f1f1f1;
+      transition: max-height 0.2s ease-out;
+    }
+    /* Scroll-to-top button styling */
+    .scroll-to-top {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background-color: #4299e1;
+      color: white;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      cursor: pointer;
+      font-size: 20px;
+    }
+    .scroll-to-top:hover {
+      background-color: #2b6cb0;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans antialiased">
+<div class="container mx-auto px-4 py-8">
+  <h1 class="text-4xl font-bold mb-6">WATCH SERVICE TRACKER</h1>
+
+  <!-- Days worked section -->
+  <div class="flex justify-between items-center mb-4 bg-white p-4 rounded-lg shadow">
+    <button id="decrementDay" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-5 text-xl rounded">-</button>
+    <div>
+      <span id="daysWorked" class="text-2xl">1</span> days
+    </div>
+    <button id="incrementDay" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-5 text-xl rounded">+</button>
+  </div>
+
+  <!-- Monthly hours display and half-day controls -->
+  <div class="mb-4 bg-white p-4 rounded-lg shadow flex flex-wrap">
+    <div class="flex-1 mr-2 mb-2 min-w-[200px]">
+      <label class="block text-lg mb-2">Monthly hours</label>
+      <span id="monthlyHoursDisplay" class="block w-full bg-white border border-gray-400 px-4 py-2 rounded shadow leading-tight">7.5</span>
+    </div>
+    <div class="flex-1 ml-2 mb-2 min-w-[200px] flex flex-col space-y-2">
+      <button id="halfDayAddButton" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded w-full">半休追加（3時間45分）</button>
+      <button id="halfDayRemoveButton" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded w-full">半休削除（3時間45分）</button>
+    </div>
+  </div>
+
+  <!-- Service selection -->
+  <div class="mb-6 bg-white p-4 rounded-lg shadow">
+    <label for="serviceSelect" class="block mb-2 text-lg">Select a service</label>
+    <select id="serviceSelect" class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline">
+      <!-- Options populate here -->
+    </select>
+  </div>
+
+  <!-- Unproductive time controls: hidden by default -->
+  <div id="unproductiveControls" class="mb-4 bg-white p-4 rounded-lg shadow" style="display:none;">
+    <label for="unproductiveMinutes" class="block text-lg mb-2">Unproductive time (minutes)</label>
+    <input type="number" id="unproductiveMinutes" min="10" step="10" value="10" class="block w-full bg-white border border-gray-400 px-4 py-2 rounded shadow leading-tight focus:outline-none focus:shadow-outline" />
+    <p class="text-sm text-gray-500 mt-1">Add or remove time in 10-minute increments</p>
+  </div>
+
+  <!-- Service date and comment inputs -->
+  <div class="flex mb-4 bg-white p-4 rounded-lg shadow flex-wrap">
+    <div class="flex-1 mr-2">
+      <label for="serviceDate" class="block mb-2 text-lg">Select Date</label>
+      <input type="date" id="serviceDate" class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline">
+    </div>
+    <div class="flex-1 ml-2">
+      <label for="serviceComment" class="block mb-2 text-lg">Comment</label>
+      <textarea id="serviceComment" class="block appearance-none w-full bg-white border border-gray-400 hover:border-gray-500 px-4 py-2 pr-8 rounded shadow leading-tight focus:outline-none focus:shadow-outline" rows="1" placeholder="コメントを入力"></textarea>
+    </div>
+  </div>
+
+  <!-- Add/remove service buttons and total hours -->
+  <div class="flex justify-between items-center mb-4 bg-white p-4 rounded-lg shadow">
+    <button id="addTime" class="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-5 rounded">ADD</button>
+    <div id="totalHours" class="text-2xl">0 hours</div>
+    <button id="removeTime" class="bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-5 rounded">REMOVE</button>
+  </div>
+
+  <!-- Service list collapsible -->
+  <button id="serviceListToggle" class="collapsible"><strong>▼ Service List</strong></button>
+  <div id="serviceListContent" class="collapsible-content">
+    <div id="serviceList" class="space-y-2 p-4"></div>
+  </div>
+
+  <!-- Added services summary -->
+  <div id="addedServices" class="mb-6 bg-white p-4 rounded-lg shadow"></div>
+
+  <!-- Total services count and export button -->
+  <div id="addedServicesTotal" class="mb-6 bg-white p-4 rounded-lg shadow">
+    <h2>Total Services: <span id="totalServicesCount">0</span></h2>
+    <button id="exportExcel" class="bg-gray-200 text-black py-2 px-4 rounded shadow hover:bg-gray-300">Service ListをExcelで出力</button>
+  </div>
+
+  <!-- QC Return section -->
+  <div class="mb-6 bg-white p-4 rounded-lg shadow">
+    <h1 class="text-2xl font-bold mb-4">QC Return</h1>
+    <div class="flex mb-4 flex-wrap">
+      <div class="flex-1 mr-2 mb-2 min-w-[200px]">
+        <label for="category" class="block text-lg mb-2">Category</label>
+        <select id="category" class="block w-full p-2 border border-gray-300 rounded">
+          <option value="D1">D1</option>
+          <option value="D2">D2</option>
+          <option value="D3">D3</option>
+          <option value="D4">D4</option>
+          <option value="D5">D5</option>
+        </select>
+      </div>
+      <div class="flex-1 ml-2 mb-2 min-w-[200px]">
+        <label for="qcComment" class="block text-lg mb-2">Comment</label>
+        <textarea id="qcComment" class="block w-full p-2 border border-gray-300 rounded" rows="1" placeholder="コメントを入力"></textarea>
+      </div>
+    </div>
+    <div class="flex space-x-4 mb-4">
+      <button id="addQcReturn" class="px-5 py-3 bg-blue-500 text-white rounded hover:bg-blue-600">ADD QC Return</button>
+      <button id="removeQcReturn" class="px-5 py-3 bg-red-500 text-white rounded hover:bg-red-600">Remove QC Return</button>
+    </div>
+    <div id="qcReturnList" class="space-y-2 mb-4"></div>
+    <div id="qcReturnRateDisplay" class="mb-4">
+      <h2>QC Return Rate: <span id="qcReturnRate">0</span>%</h2>
+    </div>
+  </div>
+
+  <!-- Reset button -->
+  <div class="flex justify-center mb-4 bg-white p-4 rounded-lg shadow">
+    <button id="resetButton" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-3 px-5 rounded">RESET</button>
+  </div>
+
+  <!-- Monthly progress tracking -->
+  <div class="mb-6 mt-6 bg-white p-4 rounded-lg shadow">
+    <h2 class="text-3xl font-bold mb-2">Monthly progress tracking</h2>
+    <div class="progress-bar">
+      <div id="progressBarInner" class="progress-bar-inner">
+        <span id="progressPercentage" class="progress-bar-text text-white">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scroll to top button -->
+  <button class="scroll-to-top" onclick="scrollToTop()"><strong>^</strong></button>
+</div>
+
+<!-- Main JavaScript functionality -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Constants and state variables
+    let currentDays = 1;
+    const hoursPerDay = 7.5; // Fixed daily working hours
+    let halfDayCount = 0;    // Number of half-day additions
+    let currentTotalHours = 0; // Total hours spent on services
+    let servicesAdded = {};
+    let serviceEntries = [];
+    let qcReturnCounts = { D1: 0, D2: 0, D3: 0, D4: 0, D5: 0 };
+    let qcReturnComments = { D1: [], D2: [], D3: [], D4: [], D5: [] };
+
+    // Service hours definition
+    const serviceHours = {
+      'E15': 2.5,
+      'Other QZ': 3,
+      'Manual Winding': 5,
+      'Automatic': 6.5,
+      'Cal.177': 9,
+      'Lv.3 215(156,163)': 6,
+      'Lv.3 Auto.cal.240,315(164,196,228...)': 7.5,
+      'Lv.3 Auto.Cal.315(199,299,384,421...)': 8,
+      'CHR QA28-520(521,523,524,526)': 11.5,
+      'CHR 28-520(522,525,528)': 10,
+      'Q240(114)': 11,
+      'CHR29-535(224,225)': 10,
+      'Q324(379)': 11,
+      'CHR QP29-535(226)': 14,
+      'CHR QP27-70(70,155)': 18,
+      'QR315(136,236,336)': 11,
+      'LU CL240(165,169)': 18,
+      'Partial OH1': 1,
+      'Partial OH2': 2,
+      'Partial OH4': 4,
+      'Partial OH6': 6,
+      'Partial OH8': 8,
+      'EM': 0.5,
+      'Unproductivetime': 1 // base hour used for default; minutes override this
+    };
+
+    // DOM element references
+    const daysWorkedSpan = document.getElementById('daysWorked');
+    const monthlyHoursDisplay = document.getElementById('monthlyHoursDisplay');
+    const halfDayAddButton = document.getElementById('halfDayAddButton');
+    const halfDayRemoveButton = document.getElementById('halfDayRemoveButton');
+    const serviceSelect = document.getElementById('serviceSelect');
+    const unproductiveControls = document.getElementById('unproductiveControls');
+    const unproductiveMinutesInput = document.getElementById('unproductiveMinutes');
+    const serviceDateInput = document.getElementById('serviceDate');
+    const serviceCommentInput = document.getElementById('serviceComment');
+    const addTimeButton = document.getElementById('addTime');
+    const removeTimeButton = document.getElementById('removeTime');
+    const totalHoursDisplay = document.getElementById('totalHours');
+    const addedServicesDiv = document.getElementById('addedServices');
+    const totalServicesCountSpan = document.getElementById('totalServicesCount');
+    const exportExcelButton = document.getElementById('exportExcel');
+    const serviceListToggle = document.getElementById('serviceListToggle');
+    const serviceListContent = document.getElementById('serviceListContent');
+    const serviceListDiv = document.getElementById('serviceList');
+    const addQcReturnButton = document.getElementById('addQcReturn');
+    const removeQcReturnButton = document.getElementById('removeQcReturn');
+    const categorySelect = document.getElementById('category');
+    const qcCommentInput = document.getElementById('qcComment');
+    const qcReturnListDiv = document.getElementById('qcReturnList');
+    const qcReturnRateSpan = document.getElementById('qcReturnRate');
+    const resetButton = document.getElementById('resetButton');
+    const progressBarInner = document.getElementById('progressBarInner');
+    const progressPercentage = document.getElementById('progressPercentage');
+
+    /** Utility functions **/
+    function calculateMonthlyHours() {
+      // total working hours expected: days * hours per day + half-day additions (each 3.75 hours)
+      return currentDays * hoursPerDay + halfDayCount * 3.75;
+    }
+    function updateMonthlyHoursDisplay() {
+      monthlyHoursDisplay.textContent = calculateMonthlyHours().toFixed(1);
+    }
+
+    // Update the displayed days to include half-day additions. If the result is
+    // an integer (e.g., 2.0), show it without a decimal; otherwise show one
+    // decimal place (e.g., 1.5). This ensures the days label reflects
+    // half‑day adjustments while avoiding trailing zeros.
+    function updateDaysWorkedDisplay() {
+      const displayed = currentDays + halfDayCount * 0.5;
+      // Determine if the displayed number is an integer
+      if (Number.isInteger(displayed)) {
+        daysWorkedSpan.textContent = displayed;
+      } else {
+        daysWorkedSpan.textContent = displayed.toFixed(1);
+      }
+    }
+    function updateTotalHoursDisplay() {
+      totalHoursDisplay.textContent = currentTotalHours.toFixed(1) + ' hours';
+    }
+    function getProgressColor(percentage) {
+      if (percentage <= 70) return '#ef4444'; // red
+      if (percentage <= 80) return '#facc15'; // yellow
+      if (percentage <= 90) return '#a3e635'; // yellow-green
+      return '#10b981'; // green
+    }
+    function updateProgressBar() {
+      const denom = calculateMonthlyHours();
+      const pct = denom > 0 ? (currentTotalHours / denom) * 100 : 0;
+      const bounded = Math.min(100, pct);
+      progressBarInner.style.width = bounded + '%';
+      progressBarInner.style.backgroundColor = getProgressColor(pct);
+      progressPercentage.textContent = pct.toFixed(1) + '%';
+    }
+    function updateServicesAdded() {
+      addedServicesDiv.innerHTML = '';
+      for (const [service, count] of Object.entries(servicesAdded)) {
+        const div = document.createElement('div');
+        if (service === 'Unproductivetime') {
+          div.textContent = `${service}: ${count} minutes added`;
+        } else {
+          div.textContent = `${service}: ${count} added`;
+        }
+        addedServicesDiv.appendChild(div);
+      }
+    }
+    function updateTotalServicesCount() {
+      let total = 0;
+      for (const [service, count] of Object.entries(servicesAdded)) {
+        if (service !== 'Unproductivetime' && service !== 'EM') {
+          total += count;
+        }
+      }
+      totalServicesCountSpan.textContent = total;
+    }
+    function updateQcReturnRate() {
+      const totalQc = Object.values(qcReturnCounts).reduce((sum, val) => sum + val, 0);
+      const totalServices = parseInt(totalServicesCountSpan.textContent) || 0;
+      const rate = totalServices > 0 ? (totalQc / totalServices) * 100 : 0;
+      qcReturnRateSpan.textContent = rate.toFixed(2);
+    }
+    function updateQcReturnList() {
+      qcReturnListDiv.innerHTML = '';
+      for (const [category, comments] of Object.entries(qcReturnComments)) {
+        comments.forEach((comment, idx) => {
+          const div = document.createElement('div');
+          div.classList.add('relative', 'p-2', 'bg-gray-100', 'rounded');
+          div.innerHTML = `<strong>${category}:</strong> ${comment}`;
+          // Delete button
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = '×';
+          deleteBtn.classList.add('absolute', 'top-0', 'right-0', 'mt-1', 'mr-1', 'text-white', 'bg-red-500', 'rounded-full', 'h-6', 'w-6', 'flex', 'items-center', 'justify-center');
+          deleteBtn.addEventListener('click', () => {
+            // Remove this comment
+            qcReturnComments[category].splice(idx, 1);
+            qcReturnCounts[category]--;
+            updateQcReturnList();
+            saveData();
+            updateQcReturnRate();
+          });
+          div.appendChild(deleteBtn);
+          qcReturnListDiv.appendChild(div);
+        });
+      }
+    }
+    /** Local storage functions **/
+    function saveData() {
+      const data = {
+        currentDays,
+        halfDayCount,
+        currentTotalHours,
+        servicesAdded,
+        serviceEntries,
+        qcReturnCounts,
+        qcReturnComments
+      };
+      localStorage.setItem('watchServiceData', JSON.stringify(data));
+    }
+    function loadData() {
+      const stored = localStorage.getItem('watchServiceData');
+      if (!stored) return;
+      try {
+        const data = JSON.parse(stored);
+        currentDays = data.currentDays || 1;
+        halfDayCount = data.halfDayCount || 0;
+        currentTotalHours = data.currentTotalHours || 0;
+        servicesAdded = data.servicesAdded || {};
+        serviceEntries = data.serviceEntries || [];
+        qcReturnCounts = data.qcReturnCounts || { D1:0, D2:0, D3:0, D4:0, D5:0 };
+        qcReturnComments = data.qcReturnComments || { D1:[], D2:[], D3:[], D4:[], D5:[] };
+      } catch (e) {
+        console.error('Failed to parse stored data', e);
+      }
+    }
+    /** UI update functions to reflect loaded data **/
+    function refreshUI() {
+      // Show the current day count including half‑day adjustments
+      updateDaysWorkedDisplay();
+      updateMonthlyHoursDisplay();
+      updateTotalHoursDisplay();
+      updateProgressBar();
+      updateServicesAdded();
+      updateTotalServicesCount();
+      updateQcReturnList();
+      updateQcReturnRate();
+      // Repopulate service entries into list
+      serviceListDiv.innerHTML = '';
+      serviceEntries.forEach(entry => {
+        addEntryToList(entry);
+      });
+    }
+
+    /** Populate service dropdown options **/
+    function populateServiceOptions() {
+      const options = Object.keys(serviceHours);
+      options.forEach(key => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = key;
+        serviceSelect.appendChild(opt);
+      });
+    }
+
+    // Populate options on initial load
+    populateServiceOptions();
+
+    /** Update functions for service entries **/
+    function addEntryToList(entry) {
+      const entryDiv = document.createElement('div');
+      entryDiv.classList.add('mb-2', 'p-2', 'bg-gray-100', 'rounded', 'relative');
+      // Service
+      const serviceP = document.createElement('p');
+      serviceP.innerHTML = `<strong>Service:</strong> ${entry.service}`;
+      entryDiv.appendChild(serviceP);
+      // Date
+      const dateP = document.createElement('p');
+      dateP.innerHTML = `<strong>Date:</strong> <span class='editable' contentEditable='true'>${entry.date}</span>`;
+      dateP.querySelector('.editable').addEventListener('blur', function() {
+        entry.date = this.textContent.trim();
+        saveEntriesToStorage();
+      });
+      entryDiv.appendChild(dateP);
+      // Comment
+      const commentP = document.createElement('p');
+      commentP.innerHTML = `<strong>Comment:</strong> <span class='editable' contentEditable='true'>${entry.comment}</span>`;
+      commentP.querySelector('.editable').addEventListener('blur', function() {
+        entry.comment = this.textContent.trim();
+        saveEntriesToStorage();
+      });
+      entryDiv.appendChild(commentP);
+      // Remove button
+      const closeButton = document.createElement('button');
+      closeButton.textContent = '×';
+      closeButton.classList.add('absolute', 'top-0', 'right-0', 'mt-2', 'mr-2', 'text-lg', 'text-white', 'bg-red-500', 'rounded-full', 'h-6', 'w-6', 'flex', 'items-center', 'justify-center');
+      closeButton.addEventListener('click', function() {
+        // Remove the entry from DOM and data
+        const index = serviceEntries.indexOf(entry);
+        if (index > -1) {
+          serviceEntries.splice(index, 1);
+        }
+        entryDiv.remove();
+        saveEntriesToStorage();
+        saveData();
+      });
+      entryDiv.appendChild(closeButton);
+      serviceListDiv.appendChild(entryDiv);
+    }
+    function saveEntriesToStorage() {
+      localStorage.setItem('serviceEntries', JSON.stringify(serviceEntries));
+    }
+    function loadEntriesFromStorage() {
+      const storedEntries = localStorage.getItem('serviceEntries');
+      if (storedEntries) {
+        try {
+          serviceEntries = JSON.parse(storedEntries);
+        } catch (e) {
+          console.error('Failed to parse service entries', e);
+        }
+      }
+    }
+    /** Event handlers **/
+    document.getElementById('incrementDay').addEventListener('click', function() {
+      // Increase full days by 1
+      currentDays += 1;
+      // Update the days display to reflect half‑day adjustments
+      updateDaysWorkedDisplay();
+      updateMonthlyHoursDisplay();
+      updateProgressBar();
+      saveData();
+    });
+    document.getElementById('decrementDay').addEventListener('click', function() {
+      // Decrease full days by 1 but ensure at least 1 full day remains
+      currentDays -= 1;
+      if (currentDays < 1) currentDays = 1;
+      updateDaysWorkedDisplay();
+      updateMonthlyHoursDisplay();
+      updateProgressBar();
+      saveData();
+    });
+    // Half‑day add: increment the half‑day counter, then update days display
+    halfDayAddButton.addEventListener('click', function() {
+      halfDayCount += 1;
+      updateDaysWorkedDisplay();
+      updateMonthlyHoursDisplay();
+      updateProgressBar();
+      saveData();
+    });
+    // Half‑day remove: decrement the half‑day counter if present, then update days display
+    halfDayRemoveButton.addEventListener('click', function() {
+      if (halfDayCount > 0) {
+        halfDayCount -= 1;
+        updateDaysWorkedDisplay();
+        updateMonthlyHoursDisplay();
+        updateProgressBar();
+        saveData();
+      }
+    });
+    // Service selection change: show/hide unproductive controls
+    serviceSelect.addEventListener('change', function() {
+      if (serviceSelect.value === 'Unproductivetime') {
+        unproductiveControls.style.display = 'block';
+      } else {
+        unproductiveControls.style.display = 'none';
+      }
+    });
+    // Add service button
+    addTimeButton.addEventListener('click', function() {
+      const selectedService = serviceSelect.value;
+      if (!selectedService) return;
+      let hoursToAdd = 0;
+      if (selectedService === 'Unproductivetime') {
+        const minutes = parseFloat(unproductiveMinutesInput.value) || 0;
+        if (minutes > 0) {
+          hoursToAdd = minutes / 60;
+          servicesAdded[selectedService] = (servicesAdded[selectedService] || 0) + minutes;
+        }
+      } else {
+        hoursToAdd = serviceHours[selectedService] || 0;
+        servicesAdded[selectedService] = (servicesAdded[selectedService] || 0) + 1;
+      }
+      if (hoursToAdd > 0) {
+        currentTotalHours += hoursToAdd;
+        updateTotalHoursDisplay();
+        updateProgressBar();
+        updateServicesAdded();
+        updateTotalServicesCount();
+        updateQcReturnRate();
+        saveData();
+        // Add entry to service list
+        const entry = { service: selectedService, date: serviceDateInput.value || '', comment: serviceCommentInput.value || '' };
+        serviceEntries.push(entry);
+        addEntryToList(entry);
+        saveEntriesToStorage();
+        // Clear date and comment
+        serviceDateInput.value = '';
+        serviceCommentInput.value = '';
+      }
+    });
+    // Remove service button
+    removeTimeButton.addEventListener('click', function() {
+      const selectedService = serviceSelect.value;
+      if (!selectedService) return;
+      if (selectedService === 'Unproductivetime') {
+        const minutes = parseFloat(unproductiveMinutesInput.value) || 0;
+        const existingMinutes = servicesAdded[selectedService] || 0;
+        if (minutes > 0 && existingMinutes >= minutes) {
+          const hoursToRemove = minutes / 60;
+          currentTotalHours -= hoursToRemove;
+          servicesAdded[selectedService] = existingMinutes - minutes;
+          if (servicesAdded[selectedService] === 0) delete servicesAdded[selectedService];
+          updateTotalHoursDisplay();
+          updateProgressBar();
+          updateServicesAdded();
+          updateTotalServicesCount();
+          updateQcReturnRate();
+          saveData();
+        }
+      } else {
+        const existingCount = servicesAdded[selectedService] || 0;
+        if (existingCount > 0) {
+          const hoursToRemove = serviceHours[selectedService] || 0;
+          currentTotalHours -= hoursToRemove;
+          servicesAdded[selectedService] = existingCount - 1;
+          if (servicesAdded[selectedService] === 0) delete servicesAdded[selectedService];
+          updateTotalHoursDisplay();
+          updateProgressBar();
+          updateServicesAdded();
+          updateTotalServicesCount();
+          updateQcReturnRate();
+          saveData();
+        }
+      }
+    });
+    // Toggle service list display
+    serviceListToggle.addEventListener('click', function() {
+      this.classList.toggle('active');
+      if (serviceListContent.style.display === 'block') {
+        serviceListContent.style.display = 'none';
+        this.innerHTML = '<strong>▼ Service List</strong>';
+      } else {
+        serviceListContent.style.display = 'block';
+        this.innerHTML = '<strong>▲ Service List</strong>';
+      }
+    });
+    // QC return add
+    addQcReturnButton.addEventListener('click', function() {
+      const cat = categorySelect.value;
+      const comment = qcCommentInput.value || '';
+      if (!qcReturnComments[cat]) qcReturnComments[cat] = [];
+      qcReturnComments[cat].push(comment);
+      qcReturnCounts[cat] = (qcReturnCounts[cat] || 0) + 1;
+      qcCommentInput.value = '';
+      updateQcReturnList();
+      updateQcReturnRate();
+      saveData();
+    });
+    // QC return remove (removes last added of selected category)
+    removeQcReturnButton.addEventListener('click', function() {
+      const cat = categorySelect.value;
+      if (qcReturnCounts[cat] && qcReturnCounts[cat] > 0) {
+        qcReturnComments[cat].pop();
+        qcReturnCounts[cat]--;
+        updateQcReturnList();
+        updateQcReturnRate();
+        saveData();
+      }
+    });
+    // Reset all data
+    resetButton.addEventListener('click', function() {
+      const confirmReset = confirm('Are you sure you want to reset all data?');
+      if (!confirmReset) return;
+      currentDays = 1;
+      halfDayCount = 0;
+      currentTotalHours = 0;
+      servicesAdded = {};
+      serviceEntries = [];
+      qcReturnCounts = { D1: 0, D2: 0, D3: 0, D4: 0, D5: 0 };
+      qcReturnComments = { D1: [], D2: [], D3: [], D4: [], D5: [] };
+      // Clear local storage
+      localStorage.removeItem('watchServiceData');
+      localStorage.removeItem('serviceEntries');
+      // Reset UI
+      serviceListDiv.innerHTML = '';
+      updateServicesAdded();
+      refreshUI();
+    });
+    // Export to Excel
+    exportExcelButton.addEventListener('click', function() {
+      // Prepare service data
+      const serviceData = [['Date', 'Service', 'Comment']];
+      serviceEntries.forEach(entry => {
+        serviceData.push([entry.date, entry.service, entry.comment]);
+      });
+      // Prepare QC return data
+      const qcData = [['Category', 'Comment']];
+      for (const [cat, comments] of Object.entries(qcReturnComments)) {
+        comments.forEach(comment => {
+          qcData.push([cat, comment]);
+        });
+      }
+      qcData.push(['QC Return Rate', qcReturnRateSpan.textContent + '%']);
+      // Prepare monthly metrics
+      const monthlyData = [['Metric', 'Value']];
+      monthlyData.push(['Total Services', totalServicesCountSpan.textContent]);
+      monthlyData.push(['Monthly Progress Tracking', progressPercentage.textContent]);
+      // Build workbook
+      const wb = XLSX.utils.book_new();
+      const serviceSheet = XLSX.utils.aoa_to_sheet(serviceData);
+      const qcSheet = XLSX.utils.aoa_to_sheet(qcData);
+      const monthlySheet = XLSX.utils.aoa_to_sheet(monthlyData);
+      // Adjust column widths
+      const adjustCols = (data) => data[0].map((_, i) => ({ wch: Math.max(...data.map(row => (row[i] ? row[i].toString().length : 0))) + 1 }));
+      serviceSheet['!cols'] = adjustCols(serviceData);
+      qcSheet['!cols'] = adjustCols(qcData);
+      monthlySheet['!cols'] = adjustCols(monthlyData);
+      XLSX.utils.book_append_sheet(wb, serviceSheet, 'Service Data');
+      XLSX.utils.book_append_sheet(wb, qcSheet, 'QC Return Data');
+      XLSX.utils.book_append_sheet(wb, monthlySheet, 'Monthly Metrics');
+      XLSX.writeFile(wb, 'ServiceAndMetricsExport.xlsx');
+    });
+    // Scroll to top function
+    window.scrollToTop = function() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Collapse service list if open
+      if (serviceListContent.style.display === 'block') {
+        serviceListContent.style.display = 'none';
+        serviceListToggle.classList.remove('active');
+        serviceListToggle.innerHTML = '<strong>▼ Service List</strong>';
+      }
+    };
+    /** Load stored data on page load **/
+    loadEntriesFromStorage();
+    loadData();
+    refreshUI();
+  });
+</script>
+</body>
+</html>
